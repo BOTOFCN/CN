@@ -1,0 +1,1632 @@
+--[[	
+
+	▒█░▒█ █░░█ █▀▀█ █▀▀ █▀▀█ ▒█▀▀█ █▀▀█ █▀▀█ █▀▀█ █░░█ 
+	▒█▀▀█ █▄▄█ █░░█ █▀▀ █▄▄▀ ▒█░░░ █▄▄█ █▄▄▀ █▄▄▀ █▄▄█ 
+	▒█░▒█ ▄▄▄█ █▀▀▀ ▀▀▀ ▀░▀▀ ▒█▄▄█ ▀░░▀ ▀░▀▀ ▀░▀▀ ▄▄▄█ 
+
+	- NOTE: HEAVILY OPTIMIZED FOR CAITLYN. WAS NOT MEANT FOR PUBLIC RELEASE!
+
+	v1.0
+	- Minion Prediction Farming ( Perfected! )
+	- Season 4 Masteries ( Note: All masteries should be at max level if used )
+	- Killsteal ( Thanks cconn, again. )
+	- Autopot
+	- Show/Dodge Skillshots
+	- More efficient kiting / animation cancelling ( No 1-second pause )
+	- And more!
+
+	Caitlyn Features
+	- Headshot damage calculation for farming
+	- EQ Combo + Customizable options ( HarassQ, Use W while orbwalking )
+	- More... but I forgot.
+
+	Nocturne Features
+	- Uses E and Q when orbwalking.
+	- Melee orbwalking!
+
+	Created by Dream.
+	+ cconn, Dasia ( Based heavily off his Ryze script :P )
+	+ TSM, Gem, EZGamer
+	+ Valdorian
+	+ Yonder
+	+ All of the people who created most of the existing functions in this script :)
+
+		
+
+]]
+
+		require 'Utils'
+		require 'spell_damage'
+		require 'uiconfig'
+		require 'winapi'
+		require 'SKeys'
+
+-- [[ Variables ]] --
+
+
+local target
+local targetHero
+local targetignite
+local isMelee = myHero.range < 300
+local range = myHero.range + GetDistance(GetMinBBox(myHero))
+local uiconfig = require 'uiconfig'
+local True_Attack_Damage_Against_Minions = 0
+local Range = myHero.range + GetDistance(GetMinBBox(myHero))
+local SORT_CUSTOM = function(a, b) return a.maxHealth and b.maxHealth and a.maxHealth < b.maxHealth end
+
+-- [[ End of Variables ]] --
+
+-- [[ Farming Variables ]] --
+
+local Target, M_Target
+local TEAM
+if myHero.team == 100 then
+	TEAM = "Blue"
+else
+	TEAM = "Red"
+end
+local Mast_ButcherDMG = 0
+local HavocDamage = 0
+local Ryze = { projSpeed = 2.4, aaParticles = {"ManaLeach_mis"}, aaSpellName = {"RyzeBasicAttack"}, startAttackSpeed = "0.625" }
+local Caitlyn = { projSpeed = 2.5, aaParticles = {"caitlyn_basicAttack_cas", "caitlyn_headshot_tar", "caitlyn_mis_04"}, aaSpellName = {"caitlynbasicattack"}, startAttackSpeed = "0.625" }
+local MinionInfo = { }
+MinionInfo[TEAM.."_Minion_Basic"] 		= 	{ aaDelay = 400, projSpeed = 0		}
+MinionInfo[TEAM.."_Minion_Caster"] 		=	{ aaDelay = 484, projSpeed = 0.68	}
+MinionInfo[TEAM.."_Minion_Wizard"]		=	{ aaDelay = 484, projSpeed = 0.68	}
+MinionInfo[TEAM.."_Minion_MechCannon"] 	=	{ aaDelay = 365, projSpeed = 1.18	}
+local Minions = { }
+local aaDelay = 320
+local aaPos = {x = 0, z = 0}
+local Ping = 60
+local IncomingDamage = { }
+local AnimationBeginTimer = 0
+local AnimationSpeedTimer = 0.1 * (1 / myHero.attackspeed)
+local TimeToAA = os.clock()
+
+-- [[ End of Farming Variables ]] --
+
+-- [[ Auto Level Variables ]] --
+
+local send = require 'SendInputScheduled'
+
+local version = "1.2.2"
+local Q,W,E,R = 'Q','W','E','R'
+local metakey = SKeys.Control
+local attempts = 0
+local lastAttempt = 0
+
+-- [[ Auto Level Variables ]] --
+
+-- [[ Red Elixir Variables ]] --
+
+local wUsedAt = 0
+local vUsedAt = 0
+local mUsedAt = 0
+local timer = os.clock()
+local bluePill = nil
+
+-- [[ End of Red Elixir Variables ]] --
+
+-- [[ Auto Dodge Skillshot Variables ]] --
+
+local version = '1.0'
+local cc = 0
+local skillshotArray = {}
+local colorcyan = 0x0000FFFF
+local coloryellow = 0xFFFFFF00
+local colorgreen = 0xFF00FF00
+local skillshotcharexist = false
+local show_allies=0
+
+-- [[ Edn of Auto Dodge Skillshot Variables ]] --
+
+-- [[ Roam Helper Variables ]] --
+
+local Enemies = {}
+local EnemyIndex = 1
+
+-- [[ End of Roam Helper Variables ]] --
+
+-- [[ Auto Carry Variables ]] --
+
+local target
+local target2
+local targetHero
+local target3
+local target4
+local tlow
+local thigh
+local startAttackSpeed
+local projSpeed = 2.5
+local lastAttack = GetTickCount()
+local shotFired = false
+local attackDelayOffset = 435
+local isMoving = false
+local startAttackSpeed = 0.628
+
+--[[ End of Auto Carry Variables ]] --
+
+--[[ Script Config Menu ]] --
+
+CfgControls, menu = uiconfig.add_menu('HyperCarry Controls', 200)
+menu.keydown('Orbwalk', 'Orbwalk', Keys.X)
+menu.keydown('Farm', 'Farm', Keys.C)	
+menu.keydown('LaneClear','Lane Clear',Keys.V)
+menu.keytoggle('FARM_EnemyChamp_Priority_ONOFF', 'Minion Priority', Keys.H)
+
+menu.permashow("FARM_EnemyChamp_Priority_ONOFF")
+menu.permashow('Farm')
+menu.permashow('Orbwalk')
+
+CfgSettings, menu = uiconfig.add_menu('HyperCarry Settings', 200)
+menu.slider('Ping', 'Ping', 20, 100, 20, nil, true)
+menu.checkbutton('DMG_Predict_Farm_ONOFF', 'Use Damage Prediction Farming', true)
+menu.checkbutton('MoveToMouse', 'Move To Mouse', true)
+menu.checkbutton('DrawSkillshots', 'Draw Skillshots', true)
+menu.checkbutton('DodgeSkillshots', 'Dodge Skillshots', true)
+
+CfgMasteries, menu = uiconfig.add_menu('HyperCarry Masteries', 200)
+menu.checkbutton('DoubleEdged_Mastery', 'DoubleEdged', true)
+menu.checkbutton('Executioner_Mastery', 'Executioner', true)
+menu.checkbutton('Havoc_Mastery', 'Havoc', true)
+menu.checkbutton('Butcher_Mastery', 'Butcher', true)
+
+
+
+CfgSummonerSpells, menu = uiconfig.add_menu('HyperCarry SummonerSpells', 200)
+menu.checkbutton('Auto_Summoner_Spells_ONOFF', 'Enable Auto Summoner Spells', true)
+menu.checkbutton('Auto_Ignite_ONOFF', 'Ignite', true)
+menu.checkbutton('Auto_Ignite_COMBO_ONOFF', 'Use Ignite in Combo', true)
+menu.checkbutton('Auto_Exhaust_COMBO_ONOFF', 'Use Exhaust in Combo', true)
+menu.checkbutton('Auto_Exhaust_ONOFF', 'Exhaust', true)
+menu.checkbutton('Auto_Barrier_ONOFF', 'Barrier', true)
+menu.checkbutton('Auto_Heal_ONOFF', 'Heal', true)
+menu.checkbutton('Auto_Clarity_ONOFF', 'Clarity', true)
+menu.slider('AutoHealValue', 'Auto Heal Value', 0, 100, 15, nil, true)
+menu.slider('AutoBarrierValue', 'Auto Barrier Value', 0, 100, 15, nil, true)
+menu.slider('AutoExhaustValue', 'Auto Exhaust Value', 0, 100, 20, nil, true)
+menu.slider('AutoClarityValue', 'Auto Clarity Value', 0, 100, 40, nil, true)
+menu.slider('AutoIgniteComboValue', 'Ignite Combo Value', 0, 100, 40, nil, true)
+menu.slider('AutoExhaustComboValue', 'Exhaust Combo Value', 0, 100, 40, nil, true)
+
+CfgPotions, menu = uiconfig.add_menu('HyperCarry Potions', 200)
+menu.checkbutton('CCONN_Potions_ONOFF', 'Master Switch: Potions', true)
+menu.checkbutton('Health_Potion_ONOFF', 'Health Potions', true)
+menu.checkbutton('Mana_Potion_ONOFF', 'Mana Potions', true)
+menu.checkbutton('Chrystalline_Flask_ONOFF', 'Chrystalline Flask', true)
+menu.checkbutton('Elixir_of_Fortitude_ONOFF', 'Elixir of Fortitude', true)
+menu.checkbutton('Biscuit_ONOFF', 'Biscuit', true)
+menu.slider('Health_Potion_Value', 'Health Potion Value', 0, 100, 75, nil, true)
+menu.slider('Mana_Potion_Value', 'Mana Potion Value', 0, 100, 75, nil, true)
+menu.slider('Chrystalline_Flask_Value', 'Chrystalline Flask Value', 0, 100, 75, nil, true)
+menu.slider('Elixir_of_Fortitude_Value', 'Elixir of Fortitude Value', 0, 100, 30, nil, true)
+menu.slider('Biscuit_Value', 'Biscuit Value', 0, 100, 60, nil, true)
+
+-- [[ End of Script Config Menu ]] --
+
+-- [[ Champion Addons ]]--
+
+if myHero.name == "Caitlyn" then
+	CfgCaitlyn, menu = uiconfig.add_menu('HyperCarry Caitlyn', 200)
+
+	menu.keytoggle('FARM_HarassQ_ONOFF', 'HarassQ', Keys.Z)
+	menu.keytoggle('FARM_USEW_ONOFF', 'OrbW', Keys.Z)
+	menu.keytoggle('Killsteal', 'Killsteal', Keys.J)
+	menu.keydown('EQCombo','EQ Combo', Keys.Space)
+
+	menu.checkbutton('Q','Q', true)
+	menu.checkbutton('E','E', true)
+	menu.checkbutton('R','R', true)
+
+	menu.permashow('EQCombo')
+	menu.permashow('FARM_USEW_ONOFF')
+	menu.permashow('FARM_HarassQ_ONOFF')
+end
+
+-- [[ End of Champion Addons ]]--
+
+-- [[ Core Script Function ]] --
+
+function HyperCarry()
+	DrawText("HyperCarry v1.0 Loaded", 100, 0, Color.Red)
+	if target and target.dead == 1 then target = nil end
+	if IsLolActive() and IsChatOpen() == 0 then
+
+		targetReset()
+		Mastery_Damage()
+		if CfgControls.Farm then
+			Farm()
+		end
+		if CfgSettings.Ping then
+			Ping = CfgSettings.Ping
+		end
+		if CfgControls.Orbwalk then
+			AutoCarry()
+		end
+		if CfgPotions.CCONN_Potions_ONOFF then CCONN_Potions() end
+		if myHero.name == "Caitlyn" then
+			if CfgCaitlyn.EQCombo then
+				EQCombo()
+			end
+		end
+		if CfgControls.LaneClear then
+			LaneClear()
+		end
+		if myHero.name == "Caitlyn" then
+			if CfgCaitlyn.Killsteal then
+				Killsteal()
+			end
+		end
+
+		if CfgSettings.DrawSkillshots then Skillshots() end
+	end
+
+	xa = 50/1920*GetScreenX()
+	xb = 1870/1920*GetScreenX()
+	ya = 50/1080*GetScreenY()
+	yb = 1030/1080*GetScreenY()
+
+end
+
+-- [[ End of Core Functions ]] --
+
+-- [[ Caitlyn Killsteal Functions ]] --
+
+function Killsteal()
+	for i = 1, objManager:GetMaxHeroes()  do
+		local enemy = objManager:GetHero(i)
+		if (enemy ~= nil and enemy.team ~= myHero.team and enemy.visible == 1 and enemy.invulnerable == 0 and enemy.dead == 0) then
+			local qdmg = getDmg("Q",enemy,myHero)
+			local wdmg = getDmg("W",enemy,myHero)
+			local edmg = getDmg("E",enemy,myHero)
+			local rdmg = getDmg("R",enemy,myHero)
+			local ignitedmg = (myHero.selflevel*20)+50
+            if CfgCaitlyn.Q and qdmg > enemy.health and myHero.SpellTimeQ > 1.0 and GetDistance(myHero,enemy) <= 1300 then --Q KS
+            	CaitQ(enemy)
+            end
+            if CfgCaitlyn.E and edmg > enemy.health and myHero.SpellTimeE > 1.0 and GetDistance(myHero,enemy) <= 1000 then --E KS
+            	CaitE(enemy)
+            end
+            if CfgCaitlyn.R and rdmg > enemy.health and myHero.SpellTimeR > 1.0 and GetDistance(myHero,enemy) <= (1500+(500*myHero.SpellLevelR)) and GetDistance(myHero,enemy) > 1000 then --R KS
+                CaitR(enemy)
+            end
+		end
+	end
+end
+
+function CaitQ(QTarget)
+	local range = 1300
+	local manacost = (40 + (10 * myHero.SpellLevelQ))
+	if QTarget ~= nil then
+		if GetDistance(myHero, QTarget) <= range and myHero.mana >= manacost then
+			CastSpellXYZ('Q',GetFireahead(QTarget,2,16))
+		end
+	end
+end
+
+function CaitW(WTarget)
+	local range = 800
+	local manacost = 50
+	if WTarget ~= nil then
+		if GetDistance(myHero, WTarget) <= range and myHero.mana >= manacost then
+			CastSpellTarget('W',WTarget)
+		end
+	end
+end
+
+function CaitE(ETarget)
+	local range = 1000
+	local manacost = 75
+	if ETarget ~= nil then
+		if GetDistance(myHero, ETarget) <= range and myHero.mana >= manacost then
+			CastSpellXYZ('E',GetFireahead(ETarget,2,32))
+		end
+	end
+end
+
+function CaitR(RTarget)
+	local range = (1500+(500*myHero.SpellLevelR))
+	local manacost = 100
+	if RTarget ~= nil then
+		if GetDistance(myHero, RTarget) <= range and myHero.mana >= manacost then
+			CastSpellTarget('R',RTarget)
+		end
+	end
+end
+
+function CaitEQCombo(EQTarget)
+	if EQTarget ~= nil then
+		E(EQTarget)
+		Q(EQTarget)
+	end
+end
+
+-- [[ End of Caitlyn Killsteal Functions ]] --
+
+-- [[ Utility Functions ]] --
+for i = 1, objManager:GetMaxHeroes(), 1 do
+	Hero = objManager:GetHero(i)--
+	if Hero ~= nil and Hero.team ~= myHero.team then
+		if Enemies[Hero.name] == nil then
+			Enemies[Hero.name] = { Unit = Hero, Number = EnemyIndex }
+			EnemyIndex = EnemyIndex + 1
+		end
+	end
+end
+
+function IsLolActive()
+	return tostring(winapi.get_foreground_window()) == "League of Legends (TM) Client"
+end
+
+function Round(val, decimal)
+	if (decimal) then
+		return math.floor( (val * 10 ^ decimal) + 0.5) / (10 ^ decimal)
+	else
+		return math.floor(val + 0.5)
+	end
+end
+
+function HeadShotReady()
+	for i = 1, objManager:GetMaxObjects(), 1 do
+		obj = objManager:GetObject(i)
+		if obj~=nil then
+			if (obj.charName:find("headshot_rdy_indicator")) and GetDistance(obj, myHero) < 100 then
+				return true
+			end
+		end
+	end
+end
+
+function Mastery_Damage()
+	local DoubleEdgedDamage = 0
+	local ExecutionerDamage = 0
+
+	local headshot = 1
+
+	if CfgMasteries.Butcher_Mastery then
+		Mast_ButcherDMG = 2
+	else
+		Mast_ButcherDMG = 0
+	end
+
+	if CfgMasteries.Havoc_Mastery then
+		HavocDamage = 0.03
+	else
+		HavocDamage = 0
+	end
+
+	if CfgMasteries.DoubleEdged_Mastery then
+		DoubleEdgedDamage = 0.015
+	else
+		DoubleEdgedDamage = 0
+	end
+
+	if CfgMasteries.Executioner_Mastery and not HeadShotReady() then
+		ExecutionerDamage = 0.05
+	else
+		ExecutionerDamage = 0
+	end
+
+	if HeadShotReady() then 
+		headshot = 2.5 
+	else
+		headshot = 1 
+	end
+
+	True_Attack_Damage_Against_Minions = (((myHero.baseDamage + myHero.addDamage)+((myHero.baseDamage + myHero.addDamage)*(HavocDamage + DoubleEdgedDamage + ExecutionerDamage)))*headshot)
+
+end
+
+-- [[ End of Utility Functions ]] --
+
+--[[ Farming Functions ]] --
+
+function Farm()
+	Minions = GetEnemyMinions(SORT_CUSTOM)
+	AnimationSpeedTimer = 0.085 * (1 / myHero.attackspeed)
+	targetHero = GetWeakEnemy("PHYS",range)
+	if targetHero  ~= nil and CfgControls.FARM_EnemyChamp_Priority_ONOFF then
+		Action(targetHero)
+		if CfgCaitlyn.FARM_HarassQ_ONOFF then
+			harassQ(targetHero)
+		end
+	else
+		for i, Minion in pairs(Minions) do
+			if Minion ~= nil then
+				local PredictedDamage = 0
+				local aaTime = Ping + aaDelay + ( GetDistance2D(myHero, Minion) / Caitlyn.projSpeed )
+
+				for k, DMG in pairs(IncomingDamage) do
+					if DMG ~= nil then
+						if (DMG.Source == nil or DMG.Source.dead == 1 or DMG.Target == nil or DMG.Target.dead == 1) or (DMG.Source.x ~= DMG.aaPos.x or DMG.Source.z ~= DMG.aaPos.z) then
+							IncomingDamage[k] = nil
+						elseif Minion == DMG.Target then
+							DMG.aaTime = (DMG.projSpeed == 0 and (DMG.aaDelay) or (DMG.aaDelay + GetDistance2D(DMG.Source, Minion) / DMG.projSpeed))
+							if GetTickCount() >= (DMG.Start + DMG.aaTime) then
+								IncomingDamage[k] = nil
+							elseif GetTickCount() + aaTime > (DMG.Start + DMG.aaTime) then
+								PredictedDamage = PredictedDamage + DMG.Damage
+							end
+						end
+					end
+				end
+
+				if Minion.dead == 0 and Minion.health - PredictedDamage - Mast_ButcherDMG <= CalcDamage(Minion, True_Attack_Damage_Against_Minions) and Minion.health - Mast_ButcherDMG > -2 and GetDistance(Minion, myHero) < Range then
+					if timeToShoot() then
+					    Action(Minion)
+					end
+						CustomCircle(100, 1, 2, Minion)
+				
+				end
+
+
+			end
+		end
+	end
+
+	if CfgSettings.MoveToMouse then MoveToMouse() end
+end
+
+function LaneClear()
+	CustomCircle(range,2,4,myHero)
+	tlow=GetLowestHealthEnemyMinion(range) 
+	thigh=GetHighestHealthEnemyMinion(range) 
+	target2 = GetWeakEnemy("PHYS",range) 
+
+	if target2 ~= nil and CfgControls.FARM_EnemyChamp_Priority_ONOFF  then 
+		target = target2
+
+	elseif tlow ~= nil then
+		if tlow.health <= True_Attack_Damage_Against_Minions then 
+			target = tlow
+		else 
+			target = thigh
+		end
+	end
+
+	if target ~= nil then 
+		Action(target)
+	else
+		if CfgSettings.MoveToMouse then MoveToMouse() end
+	end
+end
+
+function OnProcessSpell(unit, spell)
+	if unit ~= nil and GetDistance(myHero, unit) < 1000 then
+		for i, Minion in pairs(Minions) do
+			if Minion ~= nil then
+				if MinionInfo[unit.charName] ~= nil then
+					local m_aaDelay = MinionInfo[unit.charName].aaDelay
+					local m_projSpeed = MinionInfo[unit.charName].projSpeed
+
+					if spell.target == Minion then
+						IncomingDamage[unit.name] = { Source = unit, Target = Minion, Damage = getDmg("AD", Minion, unit), Start = GetTickCount(), aaPos = { x = unit.x, z = unit.z }, aaDelay = m_aaDelay, projSpeed = m_projSpeed }
+					end
+				end
+			end
+		end
+	end
+	if unit.charName == myHero.charName then
+		for i, aaSpellName in pairs(Caitlyn.aaSpellName) do
+			if spell.name == aaSpellName then
+				AnimationBeginTimer = os.clock()
+				TimeToAA = os.clock() + (1 / myHero.attackspeed) - 0.35 * (1 / myHero.attackspeed)
+			end
+		end
+	end
+	if unit ~= nil and unit.name == myHero.name then
+		if string.find(spell.name,"attack") then                       
+			lastAttack = GetTickCount()
+		end
+	end
+	local P1 = spell.startPos
+	local P2 = spell.endPos
+	local calc = (math.floor(math.sqrt((P2.x-unit.x)^2 + (P2.z-unit.z)^2)))
+	if string.find(unit.name,"Minion_") == nil and string.find(unit.name,"Turret_") == nil then
+		if (unit.team ~= myHero.team or (show_allies==1)) and string.find(spell.name,"Basic") == nil then
+			for i=1, #skillshotArray, 1 do
+				local maxdist
+				local dodgeradius
+				dodgeradius = skillshotArray[i].radius
+				maxdist = skillshotArray[i].maxdistance
+				if spell.name == skillshotArray[i].name then
+					skillshotArray[i].shot = 1
+					skillshotArray[i].lastshot = os.clock()
+					if skillshotArray[i].type == 1 then
+						skillshotArray[i].p1x = unit.x
+						skillshotArray[i].p1y = unit.y
+						skillshotArray[i].p1z = unit.z
+						skillshotArray[i].p2x = unit.x + (maxdist)/calc*(P2.x-unit.x)
+						skillshotArray[i].p2y = P2.y
+						skillshotArray[i].p2z = unit.z + (maxdist)/calc*(P2.z-unit.z)
+						dodgelinepass(unit, P2, dodgeradius, maxdist)
+					elseif skillshotArray[i].type == 2 then
+						skillshotArray[i].px = P2.x
+						skillshotArray[i].py = P2.y
+						skillshotArray[i].pz = P2.z
+						dodgelinepoint(unit, P2, dodgeradius)
+					elseif skillshotArray[i].type == 3 then
+						skillshotArray[i].skillshotpoint = calculateLineaoe(unit, P2, maxdist)
+						if skillshotArray[i].name ~= "SummonerClairvoyance" then
+							dodgeaoe(unit, P2, dodgeradius)
+						end
+					elseif skillshotArray[i].type == 4 then
+						skillshotArray[i].px = unit.x + (maxdist)/calc*(P2.x-unit.x)
+						skillshotArray[i].py = P2.y
+						skillshotArray[i].pz = unit.z + (maxdist)/calc*(P2.z-unit.z)
+						dodgelinepass(unit, P2, dodgeradius, maxdist)
+					elseif skillshotArray[i].type == 5 then
+						skillshotArray[i].skillshotpoint = calculateLineaoe2(unit, P2, maxdist)
+						dodgeaoe(unit, P2, dodgeradius)
+					end
+				end
+			end
+		end
+	end
+end
+
+function GetDistance2D(o1, o2)
+	local c = "z"
+	if o1.z == nil or o2.z == nil then c = "y" end
+	if o1.x and o2.x ~= nil then
+		return math.sqrt(math.pow(o1.x - o2.x, 2) + math.pow(o1[c] - o2[c], 2))
+	else return GetDistance(o1, o2) end
+end
+
+-- [[ End of Farming Functions ]] --
+
+-- [[ Summoner Spell Functions ]] --
+function SummonerSpells()
+	if CfgSummonerSpells.Auto_Ignite_ONOFF then SummonerIgnite() end
+	if CfgSummonerSpells.Auto_Barrier_ONOFF then SummonerBarrier() end
+	if CfgSummonerSpells.Auto_Heal_ONOFF then SummonerHeal() end
+	if CfgSummonerSpells.Auto_Exhaust_ONOFF then SummonerExhaust() end
+	if CfgSummonerSpells.Auto_Clarity_ONOFF then SummonerClarity() end
+end
+
+function SummonerIgniteCombo()
+	if target ~= nil then
+		if myHero.SummonerD == 'SummonerDot' then
+			if target.health <= target.maxHealth*(CfgSummonerSpells.AutoIgniteComboValue / 100) then
+				CastSpellTarget('D',target)
+			end
+		end
+		if myHero.SummonerF == 'SummonerDot' then
+			if target.health <= target.maxHealth*(CfgSummonerSpells.AutoIgniteComboValue / 100) then
+				CastSpellTarget('F',target)
+			end
+		end
+	end
+end
+
+function SummonerIgnite()
+	targetignite = GetWeakEnemy("TRUE",600)
+	local damage = (myHero.selflevel*20)+50
+	if targetignite ~= nil then
+		if myHero.SummonerD == 'SummonerDot' then
+			if targetignite.health < damage then
+				CastSpellTarget('D',targetignite)
+			end
+		end
+		if myHero.SummonerF == 'SummonerDot' then
+			if targetignite.health < damage then
+				CastSpellTarget('F',targetignite)
+			end
+		end
+	end
+end
+
+function SummonerBarrier()
+	if myHero.SummonerD == 'SummonerBarrier' then
+		if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoBarrierValue / 100) then
+			CastSpellTarget('D',myHero)
+		end
+	end
+	if myHero.SummonerF == 'SummonerBarrier' then
+		if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoBarrierValue / 100) then
+			CastSpellTarget('F',myHero)
+		end
+	end
+end
+
+function SummonerHeal()
+	if myHero.SummonerD == 'SummonerHeal' then
+		if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoHealValue / 100) then
+			CastSpellTarget('D',myHero)
+		end
+	end
+	if myHero.SummonerF == 'SummonerHeal' then
+		if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoHealValue / 100) then
+			CastSpellTarget('F',myHero)
+		end
+	end
+end
+
+function SummonerExhaustCombo()
+	if target ~= nil then
+		if myHero.SummonerD == 'SummonerExhaust' then
+			if target.health <= target.maxHealth*(CfgSummonerSpells.AutoExhaustComboValue / 100) then
+				CastSpellTarget('D',target)
+			end
+		end
+		if myHero.SummonerF == 'SummonerExhaust' then
+			if target.health <= target.maxHealth*(CfgSummonerSpells.AutoExhaustComboValue / 100) then
+				CastSpellTarget('F',target)
+			end
+		end
+	end
+end
+
+function SummonerExhaust()
+	if target ~= nil then
+		if myHero.SummonerD == 'SummonerExhaust' then
+			if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoExhaustValue / 100) then
+				if myHero.health < target.health then
+					CastSpellTarget('D',target)
+				end
+			end
+		end
+		if myHero.SummonerF == 'SummonerExhaust' then
+			if myHero.health < myHero.maxHealth*(CfgSummonerSpells.AutoExhaustValue / 100) then
+				if myHero.health < target.health then
+					CastSpellTarget('F',target)
+				end
+			end
+		end
+	end
+end
+
+function SummonerClarity()
+	if myHero.SummonerD == 'SummonerMana' then
+		if myHero.mana < myHero.maxMana*(CfgSummonerSpells.AutoClarityValue / 100) then
+			CastSpellTarget('D',myHero)
+		end
+	end
+	if myHero.SummonerF == 'SummonerMana' then
+		if myHero.mana < myHero.maxMana*(CfgSummonerSpells.AutoClarityValue / 100) then
+			CastSpellTarget('F',myHero)
+		end
+	end
+end
+
+-- [[ End of Summoner Spell Functions ]] --
+
+-- [[ Auto Pot ]] --
+
+function CCONN_Potions()
+	if bluePill == nil then
+		if myHero.health < myHero.maxHealth * (CfgPotions.Health_Potion_Value / 100) and GetClock() > wUsedAt + 15000 then
+			usePotion()
+			wUsedAt = GetTick()
+		elseif myHero.health < myHero.maxHealth * (CfgPotions.Chrystalline_Flask_Value / 100) and GetClock() > vUsedAt + 10000 then 
+			useFlask()
+			vUsedAt = GetTick()
+		elseif myHero.health < myHero.maxHealth * (CfgPotions.Biscuit_Value / 100) then
+			useBiscuit()
+		elseif myHero.health < myHero.maxHealth * (CfgPotions.Elixir_of_Fortitude_Value / 100) then
+			useElixir()
+		end
+		if myHero.mana < myHero.maxMana * (CfgPotions.Mana_Potion_Value / 100) and GetClock() > mUsedAt + 15000 then
+			useManaPot()
+			mUsedAt = GetTick()
+		end
+	end
+	if (os.clock() < timer + 5000) then
+		bluePill = nil 
+	end
+end
+function OnCreateObj(object)
+	if (GetDistance(myHero, object)) < 100 then
+		if string.find(object.charName,"FountainHeal") then
+			timer=os.clock()
+			bluePill = object
+		end
+	end
+end
+function usePotion()
+	GetInventorySlot(2003)
+	UseItemOnTarget(2003,myHero)
+end
+function useFlask()
+	GetInventorySlot(2041)
+	UseItemOnTarget(2041,myHero)
+end
+function useBiscuit()
+	GetInventorySlot(2009)
+	UseItemOnTarget(2009,myHero)
+end
+function useElixir()
+	GetInventorySlot(2037)
+	UseItemOnTarget(2037,myHero)
+end
+function useManaPot()
+	GetInventorySlot(2004)
+	UseItemOnTarget(2004,myHero)
+end
+function GetTick()
+	return GetClock()
+end
+
+-- [[ End of Auto Pot ]] --
+
+-- [[ Auto Carry ]] --
+
+function OnLoad()
+	if GetAAData()[myHero.name] ~= nil then
+		if GetAAData()[myHero.name].projSpeed ~= nil then
+			projSpeed = GetAAData()[myHero.name].projSpeed
+		end
+	end
+	if GetAAData()[myHero.name] ~= nil then
+		if GetAAData()[myHero.name].startAttackSpeed ~= nil then
+			startAttackSpeed = GetAAData()[myHero.name].startAttackSpeed
+		end
+	end
+end
+
+function trueRange()
+	local trueRangeValue
+	if target ~= nil and GetDistance(target) < range then
+		trueRangeValue = range -(range-GetDistance(target))
+	else
+		trueRangeValue = range
+	end
+	return trueRangeValue
+end
+
+function targetReset()
+	if not target and not target2 and not target3 and not target4 and not targetHero then
+		target = nil
+		target2 = nil
+		target3 = nil
+		target4 = nil
+		targetHero = nil
+	end
+end
+
+function Action(targeted)
+	if timeToShoot() then
+		attackEnemy(targeted)
+		CustomCircle(100,10,1,targeted)
+	else
+		CustomCircle(100,5,2,targeted)
+		if heroCanMove() then moveToCursor() end
+	end
+end
+
+function attackEnemy(target)
+	if ValidTarget(target) then
+		AttackTarget(target)
+		shotFired = true
+	end
+end
+
+function GetNextAttackTime()
+	return lastAttack + attackDelayOffset / GetAttackSpeed()
+end
+
+function GetAttackSpeed()
+	return myHero.attackspeed/(1/startAttackSpeed)
+end
+
+function timeToShoot()
+	if GetTickCount() > GetNextAttackTime() then
+		return true
+	end
+	return false
+end
+
+function heroCanMove()
+	if shotFired == false or timeToShoot() then
+		return true
+	end
+	return false
+end
+
+function moveToCursor() -- Removes derping when mouse is in one position instead of myHero:MoveTo mousePos
+	isMoving = true
+	local moveSqr = math.sqrt((mousePos.x - myHero.x)^2+(mousePos.z - myHero.z)^2)
+	local moveX = myHero.x + 300*((mousePos.x - myHero.x)/moveSqr)
+	local moveZ = myHero.z + 300*((mousePos.z - myHero.z)/moveSqr)
+	MoveToXYZ(moveX,0,moveZ)
+end
+
+function OnCreateObj(object)
+	if GetAAData()[myHero.name] ~= nil then
+		for _, v in pairs(GetAAData()[myHero.name].aaParticles) do
+
+			if string.find(object.charName,v) then
+				shotFired = false
+				lastAttack = GetTickCount()
+			end
+		end
+	end
+end
+
+function GetAAData()
+	return {  
+	Ahri         = { projSpeed = 1.6, aaParticles = {"Ahri_BasicAttack_mis", "Ahri_BasicAttack_tar"}, aaSpellName = "ahribasicattack", startAttackSpeed = "0.668",  },
+	Anivia       = { projSpeed = 1.05, aaParticles = {"cryo_BasicAttack_mis", "cryo_BasicAttack_tar"}, aaSpellName = "aniviabasicattack", startAttackSpeed = "0.625",  },
+	Annie        = { projSpeed = 1.0, aaParticles = {"AnnieBasicAttack_tar", "AnnieBasicAttack_tar_frost", "AnnieBasicAttack2_mis", "AnnieBasicAttack3_mis"}, aaSpellName = "anniebasicattack", startAttackSpeed = "0.579",  },
+	Ashe         = { projSpeed = 2.0, aaParticles = {"bowmaster"}, aaSpellName = "attack", startAttackSpeed = "0.658" },
+	Brand        = { projSpeed = 1.975, aaParticles = {"BrandBasicAttack_cas", "BrandBasicAttack_Frost_tar", "BrandBasicAttack_mis", "BrandBasicAttack_tar", "BrandCritAttack_mis", "BrandCritAttack_tar", "BrandCritAttack_tar"}, aaSpellName = "brandbasicattack", startAttackSpeed = "0.625" },
+	Caitlyn      = { projSpeed = 2.5, aaParticles = {"caitlyn_basicAttack_cas", "caitlyn_headshot_tar", "caitlyn_mis_04"}, aaSpellName = "caitlynbasicattack", startAttackSpeed = "0.668" },
+	Cassiopeia   = { projSpeed = 1.22, aaParticles = {"CassBasicAttack_mis"}, aaSpellName = "cassiopeiabasicattack", startAttackSpeed = "0.644" },
+	Corki        = { projSpeed = 2.0, aaParticles = {"corki_basicAttack_mis", "Corki_crit_mis"}, aaSpellName = "CorkiBasicAttack", startAttackSpeed = "0.658" },
+	Draven       = { projSpeed = 1.4, aaParticles = {"Draven_BasicAttack_mis","Draven_Q_mis", "Draven_Q_mis_bloodless", "Draven_Q_mis_shadow", "Draven_Q_mis_shadow_bloodless", "Draven_Qcrit_mis", "Draven_Qcrit_mis_bloodless", "Draven_Qcrit_mis_shadow", "Draven_Qcrit_mis_shadow_bloodless", "Draven_BasicAttack_mis_shadow", "Draven_BasicAttack_mis_shadow_bloodless", "Draven_BasicAttack_mis_bloodless", "Draven_crit_mis", "Draven_crit_mis_shadow_bloodless", "Draven_crit_mis_bloodless", "Draven_crit_mis_shadow", "Draven_Q_mis", "Draven_Qcrit_mis"}, aaSpellName = "dravenbasicattack", startAttackSpeed = "0.679",  },
+	Ezreal       = { projSpeed = 2.0, aaParticles = {"Ezreal_basicattack_mis", "Ezreal_critattack_mis"}, aaSpellName = "ezrealbasicattack", startAttackSpeed = "0.625" },
+	FiddleSticks = { projSpeed = 1.75, aaParticles = {"FiddleSticks_cas", "FiddleSticks_mis", "FiddleSticksBasicAttack_tar"}, aaSpellName = "fiddlesticksbasicattack", startAttackSpeed = "0.625" },
+	Graves       = { projSpeed = 3.0, aaParticles = {"Graves_BasicAttack_mis",}, aaSpellName = "gravesbasicattack", startAttackSpeed = "0.625" },
+	Heimerdinger = { projSpeed = 1.4, aaParticles = {"heimerdinger_basicAttack_mis", "heimerdinger_basicAttack_tar"}, aaSpellName = "heimerdingerbasicAttack", startAttackSpeed = "0.625" },
+	Janna        = { projSpeed = 1.2, aaParticles = {"JannaBasicAttack_mis", "JannaBasicAttack_tar", "JannaBasicAttackFrost_tar"}, aaSpellName = "jannabasicattack", startAttackSpeed = "0.625" },
+	Jayce        = { projSpeed = 2.2, aaParticles = {"Jayce_Range_Basic_mis", "Jayce_Range_Basic_Crit"}, aaSpellName = "jaycebasicattack", startAttackSpeed = "0.658",  },
+	Karma        = { projSpeed = nil, aaParticles = {"karma_basicAttack_cas", "karma_basicAttack_mis", "karma_crit_mis"}, aaSpellName = "karmabasicattack", startAttackSpeed = "0.658",  },
+	Karthus      = { projSpeed = 1.25, aaParticles = {"LichBasicAttack_cas", "LichBasicAttack_glow", "LichBasicAttack_mis", "LichBasicAttack_tar"}, aaSpellName = "karthusbasicattack", startAttackSpeed = "0.625" },
+	Kayle        = { projSpeed = 1.8, aaParticles = {"RighteousFury_nova"}, aaSpellName = "KayleBasicAttack", startAttackSpeed = "0.638",  },
+	Kennen       = { projSpeed = 1.35, aaParticles = {"KennenBasicAttack_mis"}, aaSpellName = "kennenbasicattack", startAttackSpeed = "0.690" },
+	KogMaw       = { projSpeed = 1.8, aaParticles = {"KogMawBasicAttack_mis", "KogMawBioArcaneBarrage_mis"}, aaSpellName = "kogmawbasicattack", startAttackSpeed = "0.665", },
+	Leblanc      = { projSpeed = 1.7, aaParticles = {"leBlanc_basicAttack_cas", "leBlancBasicAttack_mis"}, aaSpellName = "leblancbasicattack", startAttackSpeed = "0.625" },
+	Lulu         = { projSpeed = 2.5, aaParticles = {"lulu_attack_cas", "LuluBasicAttack", "LuluBasicAttack_tar"}, aaSpellName = "LuluBasicAttack", startAttackSpeed = "0.625" },
+	Lux          = { projSpeed = 1.55, aaParticles = {"LuxBasicAttack_mis", "LuxBasicAttack_tar", "LuxBasicAttack01"}, aaSpellName = "luxbasicattack", startAttackSpeed = "0.625" },
+	Malzahar     = { projSpeed = 1.5, aaParticles = {"AlzaharBasicAttack_cas", "AlZaharBasicAttack_mis"}, aaSpellName = "malzaharbasicattack", startAttackSpeed = "0.625" },
+	MissFortune  = { projSpeed = 2.0, aaParticles = {"missFortune_basicAttack_mis", "missFortune_crit_mis"}, aaSpellName = "missfortunebasicattack", startAttackSpeed = "0.656" },
+	Morgana      = { projSpeed = 1.6, aaParticles = {"FallenAngelBasicAttack_mis", "FallenAngelBasicAttack_tar", "FallenAngelBasicAttack2_mis"}, aaSpellName = "Morganabasicattack", startAttackSpeed = "0.579" },
+	Nidalee      = { projSpeed = 1.7, aaParticles = {"nidalee_javelin_mis"}, aaSpellName = "nidaleebasicattack", startAttackSpeed = "0.670" },
+	Orianna      = { projSpeed = 1.4, aaParticles = {"OrianaBasicAttack_mis", "OrianaBasicAttack_tar"}, aaSpellName = "oriannabasicattack", startAttackSpeed = "0.658" },
+	Quinn        = { projSpeed = 1.85, aaParticles = {"Quinn_basicattack_mis", "QuinnValor_BasicAttack_01", "QuinnValor_BasicAttack_02", "QuinnValor_BasicAttack_03", "Quinn_W_mis"}, aaSpellName = "QuinnBasicAttack", startAttackSpeed = "0.668" }, 
+	Ryze         = { projSpeed = 2.4, aaParticles = {"ManaLeach_mis"}, aaSpellName = {"RyzeBasicAttack"}, startAttackSpeed = "0.625" },
+	Sivir        = { projSpeed = 1.4, aaParticles = {"sivirbasicattack_mis", "sivirbasicattack2_mis", "SivirRicochetAttack_mis"}, aaSpellName = "sivirbasicattack", startAttackSpeed = "0.658" },
+	Sona         = { projSpeed = 1.6, aaParticles = {"SonaBasicAttack_mis", "SonaBasicAttack_tar", "SonaCritAttack_mis", "SonaPowerChord_AriaofPerseverance_mis", "SonaPowerChord_AriaofPerseverance_tar", "SonaPowerChord_HymnofValor_mis", "SonaPowerChord_HymnofValor_tar", "SonaPowerChord_SongOfSelerity_mis", "SonaPowerChord_SongOfSelerity_tar", "SonaPowerChord_mis", "SonaPowerChord_tar"}, aaSpellName = "sonabasicattack", startAttackSpeed = "0.644" },
+	Soraka       = { projSpeed = 1.0, aaParticles = {"SorakaBasicAttack_mis", "SorakaBasicAttack_tar"}, aaSpellName = "sorakabasicattack", startAttackSpeed = "0.625" },
+	Swain        = { projSpeed = 1.6, aaParticles = {"swain_basicAttack_bird_cas", "swain_basicAttack_cas", "swainBasicAttack_mis"}, aaSpellName = "swainbasicattack", startAttackSpeed = "0.625" },
+	Syndra       = { projSpeed = 1.2, aaParticles = {"Syndra_attack_hit", "Syndra_attack_mis"}, aaSpellName = "sorakabasicattack", startAttackSpeed = "0.625",  },
+	Teemo        = { projSpeed = 1.3, aaParticles = {"TeemoBasicAttack_mis", "Toxicshot_mis"}, aaSpellName = "teemobasicattack", startAttackSpeed = "0.690" },
+	Tristana     = { projSpeed = 2.25, aaParticles = {"TristannaBasicAttack_mis"}, aaSpellName = "tristanabasicattack", startAttackSpeed = "0.656",  },
+	TwistedFate  = { projSpeed = 1.5, aaParticles = {"TwistedFateBasicAttack_mis", "TwistedFateStackAttack_mis"}, aaSpellName = "twistedfatebasicattack", startAttackSpeed = "0.651",  },
+	Twitch       = { projSpeed = 2.5, aaParticles = {"twitch_basicAttack_mis", "twitch_sprayandPray_mis"}, aaSpellName = "twitchbasicattack", startAttackSpeed = "0.679" },
+	Urgot        = { projSpeed = 1.3, aaParticles = {"UrgotBasicAttack_mis"}, aaSpellName = "urgotbasicattack", startAttackSpeed = "0.644" },
+	Vayne        = { projSpeed = 2.0, aaParticles = {"vayne_basicAttack_mis", "vayne_critAttack_mis", "vayne_ult_mis" }, aaSpellName = "vaynebasicattack", startAttackSpeed = "0.658",  },
+	Varus        = { projSpeed = 2.0, aaParticles = {"Attack"}, aaSpellName = "basic", startAttackSpeed = "0.658",  },
+	Veigar       = { projSpeed = 1.05, aaParticles = {"ahri_basicattack_mis"}, aaSpellName = "veigarbasicattack", startAttackSpeed = "0.625" },
+	Viktor       = { projSpeed = 2.25, aaParticles = {"ViktorBasicAttack_cas", "ViktorBasicAttack_mis", "ViktorBasicAttack_tar"}, aaSpellName = "viktorbasicattack", startAttackSpeed = "0.625" },
+	Vladimir     = { projSpeed = 1.4, aaParticles = {"VladBasicAttack_mis", "VladBasicAttack_mis_bloodless", "VladBasicAttack_tar", "VladBasicAttack_tar_bloodless"}, aaSpellName = "vladimirbasicattack", startAttackSpeed = "0.658" },
+	Xerath       = { projSpeed = 1.2, aaParticles = {"XerathBasicAttack_mis", "XerathBasicAttack_tar"}, aaSpellName = "xerathbasicattack", startAttackSpeed = "0.625" },
+	Ziggs        = { projSpeed = 1.5, aaParticles = {"ZiggsBasicAttack_mis", "ZiggsPassive_mis"}, aaSpellName = "ziggsbasicattack", startAttackSpeed = "0.656" },
+	Zilean       = { projSpeed = 1.25, aaParticles = {"ChronoBasicAttack_mis"}, aaSpellName = "zileanbasicattack" },
+	Zyra         = { projSpeed = 1.7, aaParticles = {"Zyra_basicAttack_cas", "Zyra_basicAttack_cas_02", "Zyra_basicAttack_mis", "Zyra_basicAttack_tar", "Zyra_basicAttack_tar_hellvine"}, aaSpellName = "zileanbasicattack", startAttackSpeed = "0.625",  },
+
+}
+end
+
+function getAdditionalDamage() 
+	if myHero.name == "Thresh" then
+		local attacku = 0.01
+		local ticky
+		ticky=GetTickCount()
+		if GetSpellLevel("E") > 0 then
+			if (ticky - lastAttack) > 10000 then
+				attacku = 1
+			else
+				attacku = (ticky - lastAttack)/10001
+			end
+			return
+			math.round((((GetSpellLevel("E")*30)+50)/100)*(myHero.addDamage+myHero.baseDamage)*attacku+(myHero.ap))
+		end
+	end
+
+	if myHero.name == "Orianna" then
+		if myHero.selflevel > 15 then
+			return math.round( 50 + (myHero.ap * 0.15) )
+		elseif myHero.selflevel > 12 then
+			return math.round( 42 + (myHero.ap * 0.15) )
+		elseif myHero.selflevel > 9 then
+			return math.round( 34 + (myHero.ap * 0.15) )
+		elseif myHero.selflevel > 6 then
+			return math.round( 26 + (myHero.ap * 0.15) )
+		elseif myHero.selflevel > 3 then
+			return math.round( 18 + (myHero.ap * 0.15) )
+		elseif myHero.selflevel > 0 then
+			return math.round( 10 + (myHero.ap * 0.15) )
+		end
+	end
+
+	if myHero.name == "Caitlyn" then
+
+		totalad = myHero.baseDamage + myHero.addDamage
+		for i = 1, objManager:GetMaxObjects(), 1 do
+			obj = objManager:GetObject(i)
+			if obj~=nil and target~=nil then
+				if (obj.charName:find("headshot_rdy_indicator")) and GetDistance(obj, myHero) < 100 then
+					return (totalad* 1.5)
+				end
+			end
+		end 
+	end
+	return 0
+end
+
+function AutoCarry()
+	CustomCircle(range,2,4,myHero)
+	if target2 ~= nil then 
+		target = target2 
+	elseif isMelee then
+		target = GetWeakEnemy("PHYS",500) 
+	else
+		target = GetWeakEnemy("PHYS",range) 
+	end
+
+	if target ~= nil then
+		UseAllItems(target)
+		Action(target)
+		Q()
+		W()
+		E()
+	else
+		moveToCursor()
+	end
+end
+
+function EQCombo()
+	targetHero = GetWeakEnemy("PHYS",1000)
+	if targetHero ~= nil then
+		if CanCastSpell("Q") and GetDistance(myHero, targetHero) <= 1000 then
+			CastSpellXYZ('E',GetFireahead(targetHero,2,32))
+			CastSpellXYZ('Q',GetFireahead(targetHero,2,16))
+		end
+	else
+		MoveToMouse()
+	end
+end
+
+function harassQ(targeth)
+	if myHero.name == "Caitlyn" then
+		if CanCastSpell("Q") and GetDistance(myHero, targeth) <= 1300 then
+			if GetDistance(myHero, targeth) > 650 then
+				CastSpellXYZ('Q',GetFireahead(targeth,2,16))
+			end
+		end
+	end
+end
+
+function Q()
+	if myHero.name == "Caitlyn" then
+		if CanCastSpell("Q") and GetDistance(myHero, target) <= 1300 then
+			if GetDistance(myHero, target) > 650 then
+				CastSpellXYZ('Q',GetFireahead(target,2,16))
+			end
+		end
+	end
+	if myHero.name == "Nocturne" then
+		if CanCastSpell("Q") and GetDistance(myHero, target) <= 1200 then
+				CastSpellXYZ('Q',GetFireahead(target,4.7,10.6))
+		end
+	end
+end
+
+function W()
+	if myHero.name == "Caitlyn" and CfgCaitlyn.FARM_USEW_ONOFF then
+		if CanCastSpell("W") and GetDistance(myHero, target) <= 800 then
+			CastSpellTarget('W',target)
+		end
+	end
+end
+
+function E()
+	if myHero.name == "Caitlyn" then
+		--[[
+		if CanCastSpell("E") and GetDistance(myHero, target) <= 1000 then
+			CastSpellXYZ('E',GetFireahead(target,2,32))
+		end
+		]]
+	end
+	if myHero.name == "Nocturne" then
+		if CanCastSpell("E") and GetDistance(myHero, target) <= 425 then
+			CastSpellTarget('E',target)
+		end
+	end
+end
+
+-- [[ End of Auto Carry ]] --
+
+-- [[ Skillshot Functions ]] --
+
+function Skillshots()
+	cc=cc+1
+	if (cc==30) then
+		LoadTable()
+	end
+	for i=1, #skillshotArray, 1 do
+		if skillshotArray[i].shot == 1 then
+			local radius = skillshotArray[i].radius
+			local color = skillshotArray[i].color
+			if skillshotArray[i].isline == false then
+				for number, point in pairs(skillshotArray[i].skillshotpoint) do
+					DrawCircle(point.x, point.y, point.z, radius, color)
+				end
+			else
+				startVector = Vector(skillshotArray[i].p1x,skillshotArray[i].p1y,skillshotArray[i].p1z)
+				endVector = Vector(skillshotArray[i].p2x,skillshotArray[i].p2y,skillshotArray[i].p2z)
+				directionVector = (endVector-startVector):normalized()
+				local angle=0
+				if (math.abs(directionVector.x)<.00001) then
+					if directionVector.z > 0 then angle=90
+					elseif directionVector.z < 0 then angle=270
+						else angle=0
+						end
+					else
+						local theta = math.deg(math.atan(directionVector.z / directionVector.x))
+						if directionVector.x < 0 then theta = theta + 180 end
+						if theta < 0 then theta = theta + 360 end
+						angle=theta
+					end
+					angle=((90-angle)*2*math.pi)/360
+					DrawLine(startVector.x, startVector.y, startVector.z, GetDistance(startVector, endVector)+170, 1,angle,radius)
+				end
+			end
+		end
+		for i=1, #skillshotArray, 1 do
+			if os.clock() > (skillshotArray[i].lastshot + skillshotArray[i].time) then
+				skillshotArray[i].shot = 0
+			end
+		end
+	end
+
+	function Level_Spell(letter)  
+		if letter == Q then send.key_press(0x69)
+		elseif letter == W then send.key_press(0x6a)
+		elseif letter == E then send.key_press(0x6b)
+		elseif letter == R then send.key_press(0x6c) end
+	end
+
+	function dodgeaoe(pos1, pos2, radius)
+		local calc = (math.floor(math.sqrt((pos2.x-myHero.x)^2 + (pos2.z-myHero.z)^2)))
+		local dodgex
+		local dodgez
+		dodgex = pos2.x + ((radius+50)/calc)*(myHero.x-pos2.x)
+		dodgez = pos2.z + ((radius+50)/calc)*(myHero.z-pos2.z)
+		if CfgSettings.DodgeSkillshots and calc < radius then
+			MoveToXYZ(dodgex,0,dodgez)
+		end
+	end
+
+	function dodgelinepass(pos1, pos2, radius, maxDist)
+	local pm2x = pos1.x + (maxDist)/(math.floor(math.sqrt((pos1.x-pos2.x)^2 + (pos1.z-pos2.z)^2)))*(pos2.x-pos1.x)
+	local pm2z = pos1.z + (maxDist)/(math.floor(math.sqrt((pos1.x-pos2.x)^2 + (pos1.z-pos2.z)^2)))*(pos2.z-pos1.z)
+	local calc1 = (math.floor(math.sqrt((pm2x-myHero.x)^2 + (pm2z-myHero.z)^2)))
+	local calc2 = (math.floor(math.sqrt((pos1.x-myHero.x)^2 + (pos1.z-myHero.z)^2)))
+	local calc3
+	local calc4 = (math.floor(math.sqrt((pos1.x-pm2x)^2 + (pos1.z-pm2z)^2)))
+	local perpendicular
+	local k
+	local x4
+	local z4
+	local dodgex
+	local dodgez
+	perpendicular = (math.floor((math.abs((pm2x-pos1.x)*(pos1.z-myHero.z)-(pos1.x-myHero.x)*(pm2z-pos1.z)))/(math.sqrt((pm2x-pos1.x)^2 + (pm2z-pos1.z)^2))))
+	k = ((pm2z-pos1.z)*(myHero.x-pos1.x) - (pm2x-pos1.x)*(myHero.z-pos1.z)) / ((pm2z-pos1.z)^2 + (pm2x-pos1.x)^2)
+	x4 = myHero.x - k * (pm2z-pos1.z)
+	z4 = myHero.z + k * (pm2x-pos1.x)
+	calc3 = (math.floor(math.sqrt((x4-myHero.x)^2 + (z4-myHero.z)^2)))
+	dodgex = x4 + ((radius+75)/calc3)*(myHero.x-x4)
+	dodgez = z4 + ((radius+75)/calc3)*(myHero.z-z4)
+	if perpendicular < radius and calc1 < calc4 and calc2 < calc4 and GetCursorX() > xa and GetCursorX() < xb and GetCursorY() > ya and GetCursorY() < yb and CfgSettings.DodgeSkillshots then
+	timer3 = GetTickCount()
+		--[[send.block_input(true,500)]]--   
+		MoveToXYZ(dodgex,0,dodgez)
+	end
+end
+
+	function calculateLinepass(pos1, pos2, spacing, maxDist)
+		local calc = (math.floor(math.sqrt((pos2.x-pos1.x)^2 + (pos2.z-pos1.z)^2)))
+		local line = {}
+		local point1 = {}
+		point1.x = pos1.x
+		point1.y = pos1.y
+		point1.z = pos1.z
+		local point2 = {}
+		point1.x = pos1.x + (maxDist)/calc*(pos2.x-pos1.x)
+		point1.y = pos2.y
+		point1.z = pos1.z + (maxDist)/calc*(pos2.z-pos1.z)
+		table.insert(line, point2)
+		table.insert(line, point1)
+		return line
+	end
+
+	function calculateLineaoe(pos1, pos2, maxDist)
+		local line = {}
+		local point = {}
+		point.x = pos2.x
+		point.y = pos2.y
+		point.z = pos2.z
+		table.insert(line, point)
+		return line
+	end
+
+	function calculateLineaoe2(pos1, pos2, maxDist)
+		local calc = (math.floor(math.sqrt((pos2.x-pos1.x)^2 + (pos2.z-pos1.z)^2)))
+		local line = {}
+		local point = {}
+		if calc < maxDist then
+			point.x = pos2.x
+			point.y = pos2.y
+			point.z = pos2.z
+			table.insert(line, point)
+		else
+			point.x = pos1.x + maxDist/calc*(pos2.x-pos1.x)
+			point.z = pos1.z + maxDist/calc*(pos2.z-pos1.z)
+			point.y = pos2.y
+			table.insert(line, point)
+		end
+		return line
+	end
+
+	function calculateLinepoint(pos1, pos2, spacing, maxDist)
+		local line = {}
+		local point1 = {}
+		point1.x = pos1.x
+		point1.y = pos1.y
+		point1.z = pos1.z
+		local point2 = {}
+		point1.x = pos2.x
+		point1.y = pos2.y
+		point1.z = pos2.z
+		table.insert(line, point2)
+		table.insert(line, point1)
+		return line
+	end
+
+	function table_print (tt, indent, done)
+		done = done or {}
+		indent = indent or 0
+		if type(tt) == "table" then
+			local sb = {}
+			for key, value in pairs (tt) do
+			table.insert(sb, string.rep (" ", indent)) -- indent it
+			if type (value) == "table" and not done [value] then
+				done [value] = true
+				table.insert(sb, "{\n");
+				table.insert(sb, table_print (value, indent + 2, done))
+				table.insert(sb, string.rep (" ", indent)) -- indent it
+				table.insert(sb, "}\n");
+			elseif "number" == type(key) then
+				table.insert(sb, string.format("\"%s\"\n", tostring(value)))
+			else
+				table.insert(sb, string.format(
+					"%s = \"%s\"\n", tostring (key), tostring(value)))
+			end
+		end
+		return table.concat(sb)
+	else
+		return tt .. "\n"
+	end
+end
+
+function SpellPred(spell,cd,a,b,range,delay,speed,block)
+	if (cd == 1 or cd) and a ~= nil and b ~= nil and delay ~= nil and speed ~= nil and GetDistance(a,b) < range then
+		local bx,by,bz = GetFireahead(b,delay,speed)
+		if (distXYZ(a.x,a.z,bx,bz)+(((((distXYZ(a.x,a.z,bx,bz)*1000)/(speed*100))*(b.movespeed*1000))/1000000))+((b.movespeed*(delay*100))/1000))<range then
+			if block == 1 and timer3 == 0 then
+				if CreepBlock(GetFireahead(b,delay,speed)) == 0 then
+					CastSpellXYZ(spell,GetFireahead(b,delay,speed))
+				end
+				else CastSpellXYZ(spell,GetFireahead(b,delay,speed))
+				end
+			end
+		end
+	end
+
+	function distXYZ(a1,a2,b1,b2)
+		if b1 == nil or b2 == nil then
+			b1 = myHero.x
+			b2 = myHero.z
+		end
+		if a2 ~= nil and b2 ~= nil and a1~=nil and b1~=nil then
+			a = (b1-a1)
+			b = (b2-a2)
+			if a~=nil and b~=nil then
+				a2=a*a
+				b2=b*b
+				if a2~=nil and b2~=nil then
+					return math.sqrt(a2+b2)
+				else
+					return 99999
+				end
+			else
+				return 99999
+			end
+		end
+	end
+
+	function dodgelinepoint(pos1, pos2, radius)
+		local calc1 = (math.floor(math.sqrt((pos2.x-myHero.x)^2 + (pos2.z-myHero.z)^2)))
+		local calc2 = (math.floor(math.sqrt((pos1.x-myHero.x)^2 + (pos1.z-myHero.z)^2)))
+		local calc4 = (math.floor(math.sqrt((pos1.x-pos2.x)^2 + (pos1.z-pos2.z)^2)))
+		local calc3
+		local perpendicular
+		local k
+		local x4
+		local z4
+		local dodgex
+		local dodgez
+		perpendicular = (math.floor((math.abs((pos2.x-pos1.x)*(pos1.z-myHero.z)-(pos1.x-myHero.x)*(pos2.z-pos1.z)))/(math.sqrt((pos2.x-pos1.x)^2 + (pos2.z-pos1.z)^2))))
+		k = ((pos2.z-pos1.z)*(myHero.x-pos1.x) - (pos2.x-pos1.x)*(myHero.z-pos1.z)) / ((pos2.z-pos1.z)^2 + (pos2.x-pos1.x)^2)
+		x4 = myHero.x - k * (pos2.z-pos1.z)
+		z4 = myHero.z + k * (pos2.x-pos1.x)
+		calc3 = (math.floor(math.sqrt((x4-myHero.x)^2 + (z4-myHero.z)^2)))
+		dodgex = x4 + ((radius+75)/calc3)*(myHero.x-x4)
+		dodgez = z4 + ((radius+75)/calc3)*(myHero.z-z4)
+		if perpendicular < radius and calc1 < calc4 and calc2 < calc4 and GetCursorX() > xa and GetCursorX() < xb and GetCursorY() > ya and GetCursorY() < yb and CfgSettings.DodgeSkillshots then
+		timer3 = GetTickCount()
+		--[[send.block_input(true,500)]]--   
+		MoveToXYZ(dodgex,0,dodgez)
+	end
+end
+
+function LoadTable()
+	print("table loaded::")
+	local iCount=objManager:GetMaxHeroes()
+	print(" heros:" .. tostring(iCount))
+	iCount=1;
+	for i=0, iCount, 1 do
+		local skillshotplayerObj = GetSelf();
+		print(" name:" .. skillshotplayerObj.name);
+		if 1==1 or skillshotplayerObj.name == "Quinn" then
+			table.insert(skillshotArray,{name= "QuinnQMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1025, type = 1, radius = 40, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Lissandra" then
+			table.insert(skillshotArray,{name= "LissandraQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 725, type = 1, radius = 100, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LissandraE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1050, type = 1, radius = 100, color= coloryellow, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Zac" then
+			table.insert(skillshotArray,{name= "ZacQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 550, type = 1, radius = 100, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "ZacE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1550, type = 3, radius = 200, color= colorcyan, time = 2, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Syndra" then
+			table.insert(skillshotArray,{name= "SyndraQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 800, type = 3, radius = 200, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "SyndraE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 650, type = 1, radius = 100, color= coloryellow, time = 0.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "syndrawcast", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 950, type = 3, radius = 200, color= colorcyan, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Jayce" then
+			table.insert(skillshotArray,{name= "jayceshockblast", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1470, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Nami" then
+			table.insert(skillshotArray,{name= "NamiQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 875, type = 3, radius = 200, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "NamiR", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 2550, type = 1, radius = 350, color= colorcyan, time = 3, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Vi" then
+			table.insert(skillshotArray,{name= "ViQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 1, radius = 150, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Thresh" then
+			table.insert(skillshotArray,{name= "ThreshQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 100, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Khazix" then
+			table.insert(skillshotArray,{name= "KhazixE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 3, radius = 200, color= colorcyan, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "KhazixW", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 120, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "khazixwlong", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "khazixelong", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 200, color= colorcyan, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Elise" then
+			table.insert(skillshotArray,{name= "EliseHumanE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1075, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Zed" then
+			table.insert(skillshotArray,{name= "ZedShuriken", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 1, radius = 100, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "ZedShadowDash", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 550, type = 3, radius = 150, color= colorcyan, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "zedw2", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 550, type = 3, radius = 150, color= colorcyan, time = 0.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Ahri" then
+			table.insert(skillshotArray,{name= "AhriOrbofDeception", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 880, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			table.insert(skillshotArray,{name= "AhriSeduce", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 975, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Amumu" then
+			table.insert(skillshotArray,{name= "BandageToss", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Anivia" then
+			table.insert(skillshotArray,{name= "FlashFrostSpell", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 90, color= colorcyan, time = 2, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Ashe" then
+			table.insert(skillshotArray,{name= "EnchantedCrystalArrow", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 50000, type = 4, radius = 120, color= colorcyan, time = 4, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Blitzcrank" then
+			table.insert(skillshotArray,{name= "RocketGrabMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 925, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Brand" then
+			table.insert(skillshotArray,{name= "BrandBlazeMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1050, type = 1, radius = 70, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			table.insert(skillshotArray,{name= "BrandFissure", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Cassiopeia" then
+			table.insert(skillshotArray,{name= "CassiopeiaMiasma", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 850, type = 3, radius = 175, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "CassiopeiaNoxiousBlast", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 850, type = 3, radius = 75, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Caitlyn" then
+			table.insert(skillshotArray,{name= "CaitlynEntrapmentMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 50, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "CaitlynPiltoverPeacemaker", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1300, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0})
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Corki" then
+			table.insert(skillshotArray,{name= "MissileBarrageMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1225, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "MissileBarrageMissile2", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1225, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "CarpetBomb", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 800, type = 2, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Chogath" then
+			table.insert(skillshotArray,{name= "Rupture", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 950, type = 3, radius = 275, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "DrMundo" then
+			table.insert(skillshotArray,{name= "InfectedCleaverMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Heimerdinger" then
+			table.insert(skillshotArray,{name= "CH1ConcussionGrenade", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 950, type = 3, radius = 225, color= coloryellow, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Draven" then
+			table.insert(skillshotArray,{name= "DravenDoubleShot", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1050, type = 1, radius = 125, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "DravenRCast", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 5000, type = 1, radius = 100, color= colorcyan, time = 4, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Ezreal" then
+			table.insert(skillshotArray,{name= "EzrealEssenceFluxMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "EzrealMysticShotMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "EzrealTrueshotBarrage", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 5000, type = 4, radius = 150, color= colorcyan, time = 4, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "EzrealArcaneShift", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 475, type = 5, radius = 100, color= colorgreen, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Fizz" then
+			table.insert(skillshotArray,{name= "FizzMarinerDoom", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1275, type = 2, radius = 100, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "FiddleSticks" then
+			table.insert(skillshotArray,{name= "Crowstorm", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 800, type = 3, radius = 600, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Karthus" then
+			table.insert(skillshotArray,{name= "LayWaste", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 875, type = 3, radius = 150, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Galio" then
+			table.insert(skillshotArray,{name= "GalioResoluteSmite", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 905, type = 3, radius = 200, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "GalioRighteousGust", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 120, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Graves" then
+			table.insert(skillshotArray,{name= "GravesChargeShot", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 110, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "GravesClusterShot", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 750, type = 1, radius = 50, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "GravesSmokeGrenade", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 700, type = 3, radius = 275, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Gragas" then
+			table.insert(skillshotArray,{name= "GragasBarrelRoll", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 3, radius = 320, color= coloryellow, time = 2.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "GragasBodySlam", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 650, type = 2, radius = 60, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "GragasExplosiveCask", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1050, type = 3, radius = 400, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Irelia" then
+			table.insert(skillshotArray,{name= "IreliaTranscendentBlades", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1200, type = 1, radius = 150, color= colorcyan, time = 0.8, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Janna" then
+			table.insert(skillshotArray,{name= "HowlingGale", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1700, type = 1, radius = 100, color= colorcyan, time = 2, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "JarvanIV" then
+			table.insert(skillshotArray,{name= "JarvanIVDemacianStandard", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 830, type = 3, radius = 150, color= coloryellow, time = 2, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "JarvanIVDragonStrike", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 770, type = 1, radius = 70, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "JarvanIVCataclysm", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 650, type = 3, radius = 300, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Kassadin" then
+			table.insert(skillshotArray,{name= "RiftWalk", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 700, type = 5, radius = 150, color= colorgreen, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Katarina" then
+			table.insert(skillshotArray,{name= "ShadowStep", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 700, type = 3, radius = 75, color= colorgreen, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Kennen" then
+			table.insert(skillshotArray,{name= "KennenShurikenHurlMissile1", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1050, type = 1, radius = 75, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "KogMaw" then
+			table.insert(skillshotArray,{name= "KogMawVoidOozeMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1115, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "KogMawLivingArtillery", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 2200, type = 3, radius = 200, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Leblanc" then
+			table.insert(skillshotArray,{name= "LeblancSoulShackle", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LeblancSoulShackleM", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LeblancSlide", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LeblancSlideM", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "leblancslidereturn", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 3, radius = 50, color= colorgreen, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "leblancslidereturnm", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 3, radius = 50, color= colorgreen, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "LeeSin" then
+			table.insert(skillshotArray,{name= "BlindMonkQOne", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 975, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "BlindMonkRKick", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1200, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Leona" then
+			table.insert(skillshotArray,{name= "LeonaZenithBladeMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 700, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Lux" then
+			table.insert(skillshotArray,{name= "LuxLightBinding", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1175, type = 1, radius = 225, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LuxLightStrikeKugel", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 3, radius = 300, color= coloryellow, time = 2.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "LuxMaliceCannon", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 3000, type = 1, radius = 180, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Lulu" then
+			table.insert(skillshotArray,{name= "LuluQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 925, type = 1, radius = 50, color= colorcyan, time = 1, isline = true, px =0, py =0 , pz =0, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Maokai" then
+			table.insert(skillshotArray,{name= "MaokaiTrunkLineMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "MaokaiSapling2", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 3, radius = 350 , color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Malphite" then
+			table.insert(skillshotArray,{name= "UFSlash", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 3, radius = 325, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Malzahar" then
+			table.insert(skillshotArray,{name= "AlZaharCalloftheVoid", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 100 , color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "AlZaharNullZone", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 800, type = 3, radius = 250 , color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "MissFortune" then
+			table.insert(skillshotArray,{name= "MissFortuneScattershot", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 800, type = 3, radius = 400, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Morgana" then
+			table.insert(skillshotArray,{name= "DarkBindingMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1300, type = 1, radius = 90, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "TormentedSoil", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 300, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Nautilus" then
+			table.insert(skillshotArray,{name= "NautilusAnchorDrag", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 950, type = 1, radius = 150, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Nidalee" then
+			table.insert(skillshotArray,{name= "JavelinToss", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1500, type = 1, radius = 350, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Nocturne" then
+			table.insert(skillshotArray,{name= "NocturneDuskbringer", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1200, type = 1, radius = 150, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Olaf" then
+			table.insert(skillshotArray,{name= "OlafAxeThrow", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 2, radius = 100, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Orianna" then
+			table.insert(skillshotArray,{name= "OrianaIzunaCommand", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 825, type = 3, radius = 150, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Renekton" then
+			table.insert(skillshotArray,{name= "RenektonSliceAndDice", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 450, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "renektondice", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 450, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Rumble" then
+			table.insert(skillshotArray,{name= "RumbleGrenadeMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 100, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "RumbleCarpetBomb", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1700, type = 1, radius = 100, color= coloryellow, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Sivir" then
+			table.insert(skillshotArray,{name= "SpiralBlade", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Singed" then
+			table.insert(skillshotArray,{name= "MegaAdhesive", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 3, radius = 350, color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Shen" then
+			table.insert(skillshotArray,{name= "ShenShadowDash", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 2, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Shaco" then
+			table.insert(skillshotArray,{name= "Deceive", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 500, type = 5, radius = 100, color= colorgreen, time = 3.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Shyvana" then
+			table.insert(skillshotArray,{name= "ShyvanaTransformLeap", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 925, type = 1, radius = 150, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "ShyvanaFireballMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Skarner" then
+			table.insert(skillshotArray,{name= "SkarnerFracture", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 1, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Sona" then
+			table.insert(skillshotArray,{name= "SonaCrescendo", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Sejuani" then
+			table.insert(skillshotArray,{name= "SejuaniGlacialPrison", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1150, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Swain" then
+			table.insert(skillshotArray,{name= "SwainShadowGrasp", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 265 , color= coloryellow, time = 1.5, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Tryndamere" then
+			table.insert(skillshotArray,{name= "Slash", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 600, type = 2, radius = 100, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Tristana" then
+			table.insert(skillshotArray,{name= "RocketJump", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 200, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "TwistedFate" then
+			table.insert(skillshotArray,{name= "WildCards", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1450, type = 1, radius = 150, color= colorcyan, time = 2, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Urgot" then
+			table.insert(skillshotArray,{name= "UrgotHeatseekingLineMissile", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 1, radius = 150, color= colorcyan, time = 0.8, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "UrgotPlasmaGrenade", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 950, type = 3, radius = 300, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Vayne" then
+			table.insert(skillshotArray,{name= "VayneTumble", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 250, type = 3, radius = 100, color= colorgreen, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Varus" then
+			table.insert(skillshotArray,{name= "VarusQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1475, type = 1, radius = 50, color= coloryellow, time = 1})
+			table.insert(skillshotArray,{name= "VarusR", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1075, type = 1, radius = 150, color= colorcyan, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Veigar" then
+			table.insert(skillshotArray,{name= "VeigarDarkMatter", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 225, color= coloryellow, time = 2, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Viktor" then
+			table.insert(skillshotArray,{name= "ViktorDeathRay", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 700, type = 1, radius = 150, color= coloryellow, time = 2})
+		end
+		if 1==1 or skillshotplayerObj.name == "Xerath" then
+			table.insert(skillshotArray,{name= "xeratharcanopulsedamage", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "xeratharcanopulsedamageextended", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1300, type = 1, radius = 150, color= colorcyan, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "xeratharcanebarragewrapper", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "xeratharcanebarragewrapperext", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1300, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Ziggs" then
+			table.insert(skillshotArray,{name= "ZiggsQ", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 850, type = 3, radius = 160, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "ZiggsW", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1000, type = 3, radius = 225 , color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0  })
+			table.insert(skillshotArray,{name= "ZiggsE", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 250, color= coloryellow, time = 1, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "ZiggsR", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 5300, type = 3, radius = 550, color= coloryellow, time = 3, isline = false, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Zyra" then
+			table.insert(skillshotArray,{name= "ZyraQFissure", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 825, type = 3, radius = 275, color= coloryellow, time = 1.5, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			table.insert(skillshotArray,{name= "ZyraGraspingRoots", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 1100, type = 1, radius = 90, color= colorcyan, time = 2, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+		if 1==1 or skillshotplayerObj.name == "Diana" then
+			table.insert(skillshotArray,{name= "DianaArc", shot=0, lastshot = 0, skillshotpoint = {}, maxdistance = 900, type = 3, radius = 205, color= coloryellow, time = 1, isline = true, p1x =0, p1y =0 , p1z =0 , p2x =0, p2y =0 , p2z =0 })
+			skillshotcharexist = true
+		end
+	end
+end
+
+-- [[ End of Skillshot Functions ]] --
+
+SetTimerCallback("HyperCarry")
